@@ -1,0 +1,609 @@
+{
+  "projeto": "Sistema de Gestão de Laboratório de Pesquisa",
+  "executado_em": "2026-10-04T16:44:13.686Z",
+  "ambiente": {
+    "engine": "PGlite",
+    "versao_pglite": "0.5.8",
+    "postgres": "PostgreSQL 18.3 (PGlite 0.5.8) on wasm32-unknown-emscripten, compiled by emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 3.1.74 (1092ec30a3fb1d46b1782ff1b4db5094d3d06ae5), 32-bit"
+  },
+  "arquivos": [
+    {
+      "arquivo": "BancoLaboratorioPostgreSQL.sql",
+      "sha256": "974078b03ff66c3c7bdb0f83c242af3f9d1f9118e52a038d7d249edb4f9c078c",
+      "resultado": "PASSOU"
+    },
+    {
+      "arquivo": "03_dados_exemplo.sql",
+      "sha256": "6ca3a7a12585de0893f9b768987b50755d405f8d6546f48361e41f2b23bd019b",
+      "resultado": "PASSOU"
+    },
+    {
+      "arquivo": "04_consultas_exemplo.sql",
+      "sha256": "53234ddbfa550c648e0f9a3d8c38aba7d8b0b04fd5827e5d46ea4541c20353ff",
+      "resultado": "PASSOU"
+    },
+    {
+      "arquivo": "05_testes_integridade.sql",
+      "sha256": "4ddfca6804e08ac06a1343d9c4656f8dce81a08870d8a483f0982a67936cee86",
+      "resultado": "PASSOU"
+    }
+  ],
+  "testes": [
+    {
+      "ordem": 1,
+      "nome": "26 tabelas criadas",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 2,
+      "nome": "Local derivado da bancada e posição exata",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 3,
+      "nome": "Equipamento diretamente na sala",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 4,
+      "nome": "Equipamentos repetidos são unidades distintas",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 5,
+      "nome": "Patrimônio único entre laboratórios",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 6,
+      "nome": "Patrimônio não duplica por caixa ou espaços",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 7,
+      "nome": "Equipamento exige um local",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 8,
+      "nome": "Equipamento não aceita dois locais",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 9,
+      "nome": "Local não cruza laboratórios",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 10,
+      "nome": "Bancada exige sala",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 11,
+      "nome": "Bancada identificável dentro da sala",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 12,
+      "nome": "E-mail único global",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 13,
+      "nome": "E-mail exige normalização",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 14,
+      "nome": "Usuário abstrato exige subclasse ao COMMIT",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 15,
+      "nome": "Aluno e Professor são subtipos exclusivos",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 16,
+      "nome": "Recurso abstrato exige subclasse ao COMMIT",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 17,
+      "nome": "Sala permite várias cópias compartilhadas",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 18,
+      "nome": "Cópia exige destino exclusivo",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 19,
+      "nome": "Professor só designa chave de recurso sob sua responsabilidade",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 20,
+      "nome": "Reserva individual abrange só a unidade",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 21,
+      "nome": "Dois equipamentos da mesma bancada são reserváveis individualmente",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 22,
+      "nome": "Equipamento bloqueia bancada inteira",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 23,
+      "nome": "Equipamento bloqueia sala inteira",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 24,
+      "nome": "Outra bancada da mesma sala permanece reservável",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 25,
+      "nome": "Equipamento direto na sala dispensa reserva da sala",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 26,
+      "nome": "Fim excluído permite reservas consecutivas",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 27,
+      "nome": "Sobreposição mínima é rejeitada",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 28,
+      "nome": "Conjunto conflitante é atômico",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 29,
+      "nome": "Falha não deixa reserva parcial",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 30,
+      "nome": "Fim deve ser posterior ao início",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 31,
+      "nome": "Usuário não reserva em outro laboratório",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 32,
+      "nome": "Cancelamento exige dono ou Chefe",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 33,
+      "nome": "Cancelamento libera toda a abrangência",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 34,
+      "nome": "Abrangência não pode ser inserida manualmente",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 35,
+      "nome": "Reserva confirmada não aceita metadados parciais de cancelamento",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 36,
+      "nome": "Não cancela reserva já encerrada",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 37,
+      "nome": "Local reservado não pode mudar",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 38,
+      "nome": "Alteração de local exige Chefe",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 39,
+      "nome": "Não inclui equipamento em bancada com reserva vigente/futura",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 40,
+      "nome": "Sala abrange bancadas, equipamentos diretos e de bancada",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 41,
+      "nome": "Sala bloqueia equipamento direto",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 42,
+      "nome": "Sala bloqueia equipamento de bancada",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 43,
+      "nome": "Sala bloqueia todas as bancadas",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 44,
+      "nome": "Reservas de laboratórios diferentes são independentes",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 45,
+      "nome": "Bancada abrange bancada e todos os seus equipamentos",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 46,
+      "nome": "Bancada bloqueia equipamento no sentido inverso",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 47,
+      "nome": "Bancada bloqueia sala inteira",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 48,
+      "nome": "Proibição cancela reserva futura de bancada abrangida",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 49,
+      "nome": "Proibição cancela reserva futura de sala abrangida",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 50,
+      "nome": "Proibição mantém reservas de outro laboratório",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 51,
+      "nome": "Proibição bloqueia equipamento individual",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 52,
+      "nome": "Proibição não é contornada pela bancada",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 53,
+      "nome": "Proibição não é contornada pela sala",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 54,
+      "nome": "Proibição não bloqueia outra unidade independente",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 55,
+      "nome": "Não admite pedidos abertos duplicados",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 56,
+      "nome": "Pedido pertence ao aluno proibido",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 57,
+      "nome": "Negação mantém proibição ativa",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 58,
+      "nome": "Proibição não encerra sem aprovação",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 59,
+      "nome": "Aprovação encerra proibição",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 60,
+      "nome": "Reativação permite nova reserva",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 61,
+      "nome": "Manutenção cancela todas as reservas vigentes/futuras afetadas",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 62,
+      "nome": "Manutenção de uma unidade preserva outra unidade",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 63,
+      "nome": "Manutenção bloqueia equipamento",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 64,
+      "nome": "Manutenção bloqueia bancada abrangente",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 65,
+      "nome": "Manutenção bloqueia sala abrangente",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 66,
+      "nome": "Retirada identifica cópia e portador",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 67,
+      "nome": "Uma cópia admite somente um empréstimo aberto",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 68,
+      "nome": "Segunda cópia pode ser emprestada a outro usuário",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 69,
+      "nome": "Reserva não autoriza outro usuário",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 70,
+      "nome": "Chave deve corresponder ao local reservado",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 71,
+      "nome": "Cópia designada a outro usuário é rejeitada",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 72,
+      "nome": "Entrega exige gestor do mesmo laboratório",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 73,
+      "nome": "Cancelamento não simula devolução de chave",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 74,
+      "nome": "Reserva cancelada não autoriza nova retirada",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 75,
+      "nome": "Extravio mantém registro de posse e bloqueia a cópia",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 76,
+      "nome": "Devolução não oculta ocorrência de extravio",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 77,
+      "nome": "Cópia devolvida em condição operacional fica disponível",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 78,
+      "nome": "Não registra devolução duplicada",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 79,
+      "nome": "Histórico de empréstimo não é apagado",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 80,
+      "nome": "Condição de chave exige ocorrência auditável",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 81,
+      "nome": "Término e conclusão da reserva não simulam devolução",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 82,
+      "nome": "Reserva encerrada não autoriza retirada",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 83,
+      "nome": "Local pode mudar após regularização de reservas",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 84,
+      "nome": "Local histórico permanece após movimentação",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 85,
+      "nome": "Movimentação atualiza quantidade",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 86,
+      "nome": "Movimentação preserva quantidade anterior e posterior",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 87,
+      "nome": "Movimentação não pode ser criada sem alteração de saldo",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 88,
+      "nome": "Estoque não fica negativo",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 89,
+      "nome": "Estoque rejeita NaN",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 90,
+      "nome": "Estoque exige Chefe",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 91,
+      "nome": "Condição de estoque baixo gera alerta",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 92,
+      "nome": "Mesma condição não repete notificação",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 93,
+      "nome": "Novo episódio de estoque baixo gera novo alerta",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 94,
+      "nome": "Validade próxima gera alerta",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 95,
+      "nome": "Validade próxima não gera alertas duplicados",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 96,
+      "nome": "Alertas entram na fila de e-mail sem envio externo",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 97,
+      "nome": "PDF original preservado byte a byte",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 98,
+      "nome": "Protocolo sem assinatura não é validado",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 99,
+      "nome": "Somente autor assina protocolo",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 100,
+      "nome": "Não vincula protocolo não validado",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 101,
+      "nome": "Somente Chefe valida protocolo",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 102,
+      "nome": "Protocolo validado pode vincular vários equipamentos",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 103,
+      "nome": "Protocolo assinado preserva conteúdo",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 104,
+      "nome": "Limite máximo de duração é aplicado",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 105,
+      "nome": "Limite usa pico simultâneo real, incluindo reservas consecutivas",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 106,
+      "nome": "Limite rejeita terceira reserva simultânea do usuário",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 107,
+      "nome": "Limite configurado é aplicado separadamente por usuário",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 108,
+      "nome": "Reserva de conjunto conta como uma solicitação no limite",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 109,
+      "nome": "Auditoria não armazena senhas nem bytes de PDF",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 110,
+      "nome": "Alteração de local é auditada com ator",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 111,
+      "nome": "Histórico não é apagado",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 112,
+      "nome": "Histórico não é adulterado",
+      "resultado": "PASSOU"
+    },
+    {
+      "ordem": 113,
+      "nome": "Histórico não pode ser truncado",
+      "resultado": "PASSOU"
+    }
+  ],
+  "concorrencia_multissessao": {
+    "executada": false,
+    "motivo": "Ambiente de validação com backend único; teste reproduzível fornecido em 06_testar_concorrencia.py."
+  },
+  "total_testes_aprovados": 113,
+  "catalogo": {
+    "tabelas": 26,
+    "colunas": 197,
+    "restricoes": 345,
+    "indices": 84
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "name": "validacao-banco-laboratorio",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node 07_validar_pglite.mjs" },
+  "devDependencies": { "@electric-sql/pglite": "0.5.8" }
+}

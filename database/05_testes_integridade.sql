@@ -1,0 +1,210 @@
+-- Executar APENAS em banco de testes carregado com 03_dados_exemplo.sql.
+-- Todas as alterações do teste são desfeitas ao final; sequências podem avançar.
+BEGIN;
+SET LOCAL search_path = gestao_lab, public;
+SET LOCAL TIME ZONE 'America/Sao_Paulo';
+CREATE TEMP TABLE resultados_teste(ordem integer GENERATED ALWAYS AS IDENTITY,nome text,resultado text) ON COMMIT DROP;
+CREATE FUNCTION pg_temp.verificar(p_condicao boolean,p_nome text) RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+    IF p_condicao IS NOT TRUE THEN RAISE EXCEPTION 'FALHOU: %',p_nome; END IF;
+    INSERT INTO resultados_teste(nome,resultado) VALUES(p_nome,'PASSOU');
+END $$;
+CREATE FUNCTION pg_temp.esperar_erro(p_sql text,p_codigo text,p_nome text) RETURNS void LANGUAGE plpgsql AS $$
+DECLARE v_codigo text;
+BEGIN
+    BEGIN
+        EXECUTE p_sql;
+    EXCEPTION WHEN OTHERS THEN
+        GET STACKED DIAGNOSTICS v_codigo=RETURNED_SQLSTATE;
+        IF v_codigo<>p_codigo THEN RAISE EXCEPTION 'FALHOU %: esperado %, recebido % (%)',p_nome,p_codigo,v_codigo,SQLERRM; END IF;
+        INSERT INTO resultados_teste(nome,resultado) VALUES(p_nome,'PASSOU');
+        RETURN;
+    END;
+    RAISE EXCEPTION 'FALHOU %: operação inválida foi aceita',p_nome;
+END $$;
+DO $$
+DECLARE r1 bigint;r2 bigint;rb bigint;rs bigint;r_aux bigint;r_key bigint;r_key2 bigint;
+        emprestimo bigint;emprestimo2 bigint;emprestimo_expirado bigint;r_expirado bigint;proibicao bigint;pedido bigint;pid bigint;v_count integer;v_bytes bytea;
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM usuario WHERE id=1 AND email='chefe.a@example.org') THEN
+        RAISE EXCEPTION 'Massa de demonstração obrigatória; não executar em banco de produção';
+    END IF;
+    PERFORM pg_temp.verificar((SELECT count(*)=26 FROM information_schema.tables WHERE table_schema='gestao_lab' AND table_type='BASE TABLE'),'26 tabelas criadas');
+    PERFORM pg_temp.verificar((SELECT sala_id=101 AND bancada_id=201 AND complemento_local='Posição 1' FROM vw_local_equipamento WHERE recurso_id=301),'Local derivado da bancada e posição exata');
+    PERFORM pg_temp.verificar((SELECT sala_id=101 AND bancada_id IS NULL AND complemento_local='Parede norte' FROM vw_local_equipamento WHERE recurso_id=303),'Equipamento diretamente na sala');
+    PERFORM pg_temp.verificar((SELECT count(*)=2 FROM recurso WHERE nome='Microscópio'),'Equipamentos repetidos são unidades distintas');
+    PERFORM pg_temp.esperar_erro($q$UPDATE equipamento SET numero_patrimonio='PAT-001' WHERE recurso_id=1301$q$,'23505','Patrimônio único entre laboratórios');
+    PERFORM pg_temp.esperar_erro($q$UPDATE equipamento SET numero_patrimonio=' pat-001 ' WHERE recurso_id=1301$q$,'23505','Patrimônio não duplica por caixa ou espaços');
+    PERFORM pg_temp.esperar_erro($q$UPDATE equipamento SET sala_direta_id=NULL,bancada_id=NULL WHERE recurso_id=301$q$,'23514','Equipamento exige um local');
+    PERFORM pg_temp.esperar_erro($q$UPDATE equipamento SET sala_direta_id=101 WHERE recurso_id=301$q$,'23514','Equipamento não aceita dois locais');
+    PERFORM pg_temp.esperar_erro($q$UPDATE equipamento SET sala_direta_id=1101,bancada_id=NULL WHERE recurso_id=301$q$,'23503','Local não cruza laboratórios');
+    PERFORM pg_temp.esperar_erro($q$UPDATE bancada SET sala_id=NULL WHERE recurso_id=201$q$,'23502','Bancada exige sala');
+    PERFORM pg_temp.esperar_erro($q$UPDATE bancada SET numero_identificacao='B01' WHERE recurso_id=202$q$,'23505','Bancada identificável dentro da sala');
+    PERFORM pg_temp.esperar_erro($q$UPDATE usuario SET email='chefe.a@example.org' WHERE id=11$q$,'23505','E-mail único global');
+    PERFORM pg_temp.esperar_erro($q$UPDATE usuario SET email='CHEFE.A@example.org' WHERE id=1$q$,'23514','E-mail exige normalização');
+    PERFORM pg_temp.esperar_erro($q$INSERT INTO usuario(laboratorio_id,nome,email,senha_hash) SELECT 1,'Sem subtipo','sem.subtipo@example.org',senha_hash FROM usuario WHERE id=1; SET CONSTRAINTS ALL IMMEDIATE$q$,'23514','Usuário abstrato exige subclasse ao COMMIT');
+    PERFORM pg_temp.esperar_erro($q$INSERT INTO aluno(usuario_id,laboratorio_id,matricula,tipo,orientador_usuario_id) VALUES(2,1,'DEMO-DUP','GRADUACAO',1); SET CONSTRAINTS ALL IMMEDIATE$q$,'23514','Aluno e Professor são subtipos exclusivos');
+    PERFORM pg_temp.esperar_erro($q$INSERT INTO recurso(laboratorio_id,tipo,nome,responsavel_usuario_id) VALUES(1,'SALA','Sem subclasse',1); SET CONSTRAINTS ALL IMMEDIATE$q$,'23514','Recurso abstrato exige subclasse ao COMMIT');
+    PERFORM pg_temp.verificar((SELECT count(*)=3 FROM chave WHERE sala_id=101 AND designada_para IS NULL),'Sala permite várias cópias compartilhadas');
+    PERFORM pg_temp.esperar_erro($q$UPDATE chave SET bancada_id=201 WHERE id=2$q$,'23514','Cópia exige destino exclusivo');
+    PERFORM pg_temp.esperar_erro($q$INSERT INTO chave(laboratorio_id,codigo_copia,sala_id,designada_por) VALUES(1,'SEM-AUTORIZACAO',102,2)$q$,'42501','Professor só designa chave de recurso sob sua responsabilidade');
+
+    r1:=criar_reserva(3,301,'2099-11-03 08:00-03','2099-11-03 10:00-03');
+    r2:=criar_reserva(4,302,'2099-11-03 08:00-03','2099-11-03 10:00-03');
+    PERFORM pg_temp.verificar((SELECT count(*)=1 FROM reserva_recurso WHERE reserva_id=r1),'Reserva individual abrange só a unidade');
+    PERFORM pg_temp.verificar(r2 IS NOT NULL,'Dois equipamentos da mesma bancada são reserváveis individualmente');
+    PERFORM pg_temp.esperar_erro($q$SELECT criar_reserva(3,201,'2099-11-03 08:00-03','2099-11-03 10:00-03')$q$,'23P01','Equipamento bloqueia bancada inteira');
+    PERFORM pg_temp.esperar_erro($q$SELECT criar_reserva(3,101,'2099-11-03 08:00-03','2099-11-03 10:00-03')$q$,'23P01','Equipamento bloqueia sala inteira');
+    r_aux:=criar_reserva(3,202,'2099-11-03 08:00-03','2099-11-03 10:00-03');
+    PERFORM pg_temp.verificar(r_aux IS NOT NULL,'Outra bancada da mesma sala permanece reservável');
+    r_aux:=criar_reserva(4,303,'2099-11-03 08:00-03','2099-11-03 10:00-03');
+    PERFORM pg_temp.verificar(r_aux IS NOT NULL,'Equipamento direto na sala dispensa reserva da sala');
+    r_aux:=criar_reserva(3,301,'2099-11-03 10:00-03','2099-11-03 11:00-03');
+    PERFORM pg_temp.verificar(r_aux IS NOT NULL,'Fim excluído permite reservas consecutivas');
+    PERFORM pg_temp.esperar_erro($q$SELECT criar_reserva(3,301,'2099-11-03 09:59-03','2099-11-03 10:01-03')$q$,'23P01','Sobreposição mínima é rejeitada');
+    SELECT count(*) INTO v_count FROM reserva;
+    PERFORM pg_temp.esperar_erro($q$SELECT criar_reserva(3,201,'2099-11-03 09:00-03','2099-11-03 11:00-03')$q$,'23P01','Conjunto conflitante é atômico');
+    PERFORM pg_temp.verificar((SELECT count(*)=v_count FROM reserva),'Falha não deixa reserva parcial');
+    PERFORM pg_temp.esperar_erro($q$SELECT criar_reserva(3,301,'2099-11-03 11:00-03','2099-11-03 10:00-03')$q$,'23514','Fim deve ser posterior ao início');
+    PERFORM pg_temp.esperar_erro($q$SELECT criar_reserva(11,301,'2099-11-04 08:00-03','2099-11-04 10:00-03')$q$,'42501','Usuário não reserva em outro laboratório');
+    PERFORM pg_temp.esperar_erro(format('SELECT cancelar_reserva(3,%s,''Terceiro sem autorização'')',r2),'42501','Cancelamento exige dono ou Chefe');
+    PERFORM cancelar_reserva(3,r1,'Desistência no teste');
+    PERFORM pg_temp.verificar((SELECT NOT bool_or(bloqueia) FROM reserva_recurso WHERE reserva_id=r1),'Cancelamento libera toda a abrangência');
+    PERFORM pg_temp.esperar_erro(format('INSERT INTO reserva_recurso(reserva_id,recurso_id,laboratorio_id,periodo,bloqueia,local_registrado) SELECT reserva_id,305,laboratorio_id,periodo,bloqueia,''{}''::jsonb FROM reserva_recurso WHERE reserva_id=%s LIMIT 1',r1),'23514','Abrangência não pode ser inserida manualmente');
+    PERFORM pg_temp.esperar_erro(format('UPDATE reserva SET cancelado_por=1 WHERE id=%s',r2),'23514','Reserva confirmada não aceita metadados parciais de cancelamento');
+    PERFORM pg_temp.esperar_erro(format('SELECT cancelar_reserva(3,%s,''Repetição'')',r1),'23514','Não cancela reserva já encerrada');
+    PERFORM pg_temp.esperar_erro($q$SELECT alterar_local_equipamento(1,302,NULL,102,'Nova posição')$q$,'23514','Local reservado não pode mudar');
+    PERFORM pg_temp.esperar_erro($q$SELECT alterar_local_equipamento(2,302,NULL,102,'Nova posição')$q$,'42501','Alteração de local exige Chefe');
+    PERFORM pg_temp.esperar_erro($q$INSERT INTO recurso(id,laboratorio_id,tipo,nome,responsavel_usuario_id) VALUES(999,1,'EQUIPAMENTO','Novo equipamento',1); INSERT INTO equipamento(recurso_id,laboratorio_id,numero_patrimonio,bancada_id,complemento_local) VALUES(999,1,'PAT-NOVO',202,'Posição livre')$q$,'23514','Não inclui equipamento em bancada com reserva vigente/futura');
+    rs:=criar_reserva(3,101,'2099-11-05 08:00-03','2099-11-05 10:00-03');
+    PERFORM pg_temp.verificar((SELECT count(*)=7 FROM reserva_recurso WHERE reserva_id=rs),'Sala abrange bancadas, equipamentos diretos e de bancada');
+    PERFORM pg_temp.esperar_erro($q$SELECT criar_reserva(4,303,'2099-11-05 09:00-03','2099-11-05 10:00-03')$q$,'23P01','Sala bloqueia equipamento direto');
+    PERFORM pg_temp.esperar_erro($q$SELECT criar_reserva(4,301,'2099-11-05 09:00-03','2099-11-05 10:00-03')$q$,'23P01','Sala bloqueia equipamento de bancada');
+    PERFORM pg_temp.esperar_erro($q$SELECT criar_reserva(4,202,'2099-11-05 09:00-03','2099-11-05 10:00-03')$q$,'23P01','Sala bloqueia todas as bancadas');
+    r_aux:=criar_reserva(11,1301,'2099-11-05 08:00-03','2099-11-05 10:00-03');
+    PERFORM pg_temp.verificar(r_aux IS NOT NULL,'Reservas de laboratórios diferentes são independentes');
+    rb:=criar_reserva(3,201,'2099-11-06 08:00-03','2099-11-06 10:00-03');
+    PERFORM pg_temp.verificar((SELECT count(*)=3 FROM reserva_recurso WHERE reserva_id=rb),'Bancada abrange bancada e todos os seus equipamentos');
+    PERFORM pg_temp.esperar_erro($q$SELECT criar_reserva(4,302,'2099-11-06 08:00-03','2099-11-06 10:00-03')$q$,'23P01','Bancada bloqueia equipamento no sentido inverso');
+    PERFORM pg_temp.esperar_erro($q$SELECT criar_reserva(4,101,'2099-11-06 08:00-03','2099-11-06 10:00-03')$q$,'23P01','Bancada bloqueia sala inteira');
+
+    proibicao:=proibir_aluno(1,3,302,'Restrição de demonstração');
+    PERFORM pg_temp.verificar((SELECT estado='CANCELADA' FROM reserva WHERE id=rb),'Proibição cancela reserva futura de bancada abrangida');
+    PERFORM pg_temp.verificar((SELECT estado='CANCELADA' FROM reserva WHERE id=rs),'Proibição cancela reserva futura de sala abrangida');
+    PERFORM pg_temp.verificar((SELECT estado='CONFIRMADA' FROM reserva WHERE id=r_aux AND usuario_id=11),'Proibição mantém reservas de outro laboratório');
+    PERFORM pg_temp.esperar_erro($q$SELECT criar_reserva(3,302,'2099-11-07 08:00-03','2099-11-07 10:00-03')$q$,'42501','Proibição bloqueia equipamento individual');
+    PERFORM pg_temp.esperar_erro($q$SELECT criar_reserva(3,201,'2099-11-07 08:00-03','2099-11-07 10:00-03')$q$,'42501','Proibição não é contornada pela bancada');
+    PERFORM pg_temp.esperar_erro($q$SELECT criar_reserva(3,101,'2099-11-07 08:00-03','2099-11-07 10:00-03')$q$,'42501','Proibição não é contornada pela sala');
+    r_aux:=criar_reserva(3,301,'2099-11-07 08:00-03','2099-11-07 10:00-03');
+    PERFORM pg_temp.verificar(r_aux IS NOT NULL,'Proibição não bloqueia outra unidade independente');
+    pedido:=solicitar_reativacao(3,proibicao,'Solicito reavaliação');
+    PERFORM pg_temp.esperar_erro(format('SELECT solicitar_reativacao(3,%s,''Pedido repetido'')',proibicao),'23505','Não admite pedidos abertos duplicados');
+    PERFORM pg_temp.esperar_erro(format('SELECT solicitar_reativacao(4,%s,''Outro aluno'')',proibicao),'42501','Pedido pertence ao aluno proibido');
+    PERFORM responder_reativacao(1,pedido,false,'Pedido negado no teste');
+    PERFORM pg_temp.verificar((SELECT encerrada_em IS NULL FROM proibicao_aluno_equipamento WHERE id=proibicao),'Negação mantém proibição ativa');
+    PERFORM pg_temp.esperar_erro(format('UPDATE proibicao_aluno_equipamento SET encerrada_em=clock_timestamp(),encerrada_por=1 WHERE id=%s',proibicao),'23514','Proibição não encerra sem aprovação');
+    pedido:=solicitar_reativacao(3,proibicao,'Nova justificativa');
+    PERFORM responder_reativacao(1,pedido,true,'Aprovado no teste');
+    PERFORM pg_temp.verificar((SELECT encerrada_em IS NOT NULL FROM proibicao_aluno_equipamento WHERE id=proibicao),'Aprovação encerra proibição');
+    r_aux:=criar_reserva(3,302,'2099-11-08 08:00-03','2099-11-08 10:00-03');
+    PERFORM pg_temp.verificar(r_aux IS NOT NULL,'Reativação permite nova reserva');
+    PERFORM definir_estado_recurso(1,301,'MANUTENCAO','Revisão técnica');
+    PERFORM pg_temp.verificar((SELECT count(*)=0 FROM reserva r JOIN reserva_recurso rr ON rr.reserva_id=r.id WHERE rr.recurso_id=301 AND r.bloqueia AND r.fim>clock_timestamp()),'Manutenção cancela todas as reservas vigentes/futuras afetadas');
+    PERFORM pg_temp.verificar((SELECT estado='CONFIRMADA' FROM reserva WHERE id=r2),'Manutenção de uma unidade preserva outra unidade');
+    PERFORM pg_temp.esperar_erro($q$SELECT criar_reserva(3,301,'2099-11-09 08:00-03','2099-11-09 10:00-03')$q$,'23514','Manutenção bloqueia equipamento');
+    PERFORM pg_temp.esperar_erro($q$SELECT criar_reserva(3,201,'2099-11-09 08:00-03','2099-11-09 10:00-03')$q$,'23514','Manutenção bloqueia bancada abrangente');
+    PERFORM pg_temp.esperar_erro($q$SELECT criar_reserva(3,101,'2099-11-09 08:00-03','2099-11-09 10:00-03')$q$,'23514','Manutenção bloqueia sala abrangente');
+    PERFORM definir_estado_recurso(1,301,'DISPONIVEL','Revisão concluída');
+
+    r_key:=criar_reserva(3,301,clock_timestamp()+interval '1 hour',clock_timestamp()+interval '2 hours');
+    r_key2:=criar_reserva(4,302,clock_timestamp()+interval '1 hour',clock_timestamp()+interval '2 hours');
+    emprestimo:=retirar_chave(3,r_key,1,2);
+    PERFORM pg_temp.verificar((SELECT estado='EM_USO' AND portador_usuario_id=3 FROM vw_chave_estado WHERE id=1),'Retirada identifica cópia e portador');
+    PERFORM pg_temp.esperar_erro(format('SELECT retirar_chave(3,%s,1,2)',r_key),'23505','Uma cópia admite somente um empréstimo aberto');
+    emprestimo2:=retirar_chave(4,r_key2,2,2);
+    PERFORM pg_temp.verificar(emprestimo2 IS NOT NULL,'Segunda cópia pode ser emprestada a outro usuário');
+    PERFORM pg_temp.esperar_erro(format('SELECT retirar_chave(4,%s,6,2)',r_key),'42501','Reserva não autoriza outro usuário');
+    PERFORM pg_temp.esperar_erro(format('SELECT retirar_chave(3,%s,4,1)',r_key),'42501','Chave deve corresponder ao local reservado');
+    PERFORM pg_temp.esperar_erro(format('SELECT retirar_chave(3,%s,5,2)',r_key),'42501','Cópia designada a outro usuário é rejeitada');
+    PERFORM pg_temp.esperar_erro(format('SELECT retirar_chave(3,%s,6,10)',r_key),'42501','Entrega exige gestor do mesmo laboratório');
+    PERFORM cancelar_reserva(3,r_key,'Cancelamento com chave ainda em posse');
+    PERFORM pg_temp.verificar((SELECT devolucao_em IS NULL FROM emprestimo_chave WHERE id=emprestimo),'Cancelamento não simula devolução de chave');
+    PERFORM pg_temp.esperar_erro(format('SELECT retirar_chave(3,%s,6,2)',r_key),'42501','Reserva cancelada não autoriza nova retirada');
+    PERFORM registrar_ocorrencia_chave(2,1,'EXTRAVIADA','Extravio registrado no teste');
+    PERFORM pg_temp.verificar((SELECT estado='EXTRAVIADA' AND portador_usuario_id=3 FROM vw_chave_estado WHERE id=1),'Extravio mantém registro de posse e bloqueia a cópia');
+    PERFORM devolver_chave(emprestimo,2);
+    PERFORM pg_temp.verificar((SELECT estado='EXTRAVIADA' FROM vw_chave_estado WHERE id=1),'Devolução não oculta ocorrência de extravio');
+    PERFORM registrar_ocorrencia_chave(2,1,'OPERACIONAL','Cópia localizada e conferida');
+    PERFORM pg_temp.verificar((SELECT estado='DISPONIVEL' FROM vw_chave_estado WHERE id=1),'Cópia devolvida em condição operacional fica disponível');
+    PERFORM pg_temp.esperar_erro(format('SELECT devolver_chave(%s,2)',emprestimo),'23514','Não registra devolução duplicada');
+    PERFORM pg_temp.esperar_erro(format('DELETE FROM emprestimo_chave WHERE id=%s',emprestimo),'23514','Histórico de empréstimo não é apagado');
+    PERFORM pg_temp.esperar_erro($q$UPDATE chave SET condicao='EXTRAVIADA' WHERE id=6$q$,'23514','Condição de chave exige ocorrência auditável');
+    r_expirado:=criar_reserva(3,303,clock_timestamp()-interval '1 minute',clock_timestamp()+interval '1 second');
+    emprestimo_expirado:=retirar_chave(3,r_expirado,6,2);
+    PERFORM pg_sleep(1.1);
+    UPDATE reserva SET estado='CONCLUIDA' WHERE id=r_expirado;
+    PERFORM pg_temp.verificar((SELECT devolucao_em IS NULL FROM emprestimo_chave WHERE id=emprestimo_expirado),'Término e conclusão da reserva não simulam devolução');
+    PERFORM pg_temp.esperar_erro(format('SELECT retirar_chave(3,%s,6,2)',r_expirado),'42501','Reserva encerrada não autoriza retirada');
+    PERFORM devolver_chave(emprestimo_expirado,2);
+    PERFORM alterar_local_equipamento(1,301,NULL,102,'Armário 2, prateleira 1');
+    PERFORM pg_temp.verificar((SELECT sala_id=102 AND bancada_id IS NULL FROM vw_local_equipamento WHERE recurso_id=301),'Local pode mudar após regularização de reservas');
+    PERFORM pg_temp.verificar((SELECT (local_registrado->>'bancada_id')::bigint=201 FROM reserva_recurso WHERE reserva_id=r1 AND recurso_id=301),'Local histórico permanece após movimentação');
+
+    PERFORM movimentar_estoque(1,1,-5,'Uso de demonstração');
+    PERFORM pg_temp.verificar((SELECT quantidade=95 FROM item_estoque WHERE id=1),'Movimentação atualiza quantidade');
+    PERFORM pg_temp.verificar(EXISTS(SELECT 1 FROM movimentacao_estoque WHERE item_id=1 AND quantidade_anterior=100 AND quantidade_posterior=95 AND variacao=-5),'Movimentação preserva quantidade anterior e posterior');
+    PERFORM pg_temp.esperar_erro($q$INSERT INTO movimentacao_estoque(laboratorio_id,item_id,registrado_por,variacao,quantidade_anterior,quantidade_posterior,motivo) VALUES(1,1,1,1,95,96,'Movimento manual inconsistente')$q$,'23514','Movimentação não pode ser criada sem alteração de saldo');
+    PERFORM pg_temp.esperar_erro($q$SELECT movimentar_estoque(1,1,-100,'Retirada excessiva')$q$,'23514','Estoque não fica negativo');
+    PERFORM pg_temp.esperar_erro($q$SELECT movimentar_estoque(1,1,'NaN'::numeric,'Valor inválido')$q$,'23514','Estoque rejeita NaN');
+    PERFORM pg_temp.esperar_erro($q$SELECT movimentar_estoque(2,1,5,'Professor sem poder administrativo')$q$,'42501','Estoque exige Chefe');
+    PERFORM pg_temp.verificar(avaliar_alertas_estoque(1)=1,'Condição de estoque baixo gera alerta');
+    PERFORM pg_temp.verificar(avaliar_alertas_estoque(1)=0,'Mesma condição não repete notificação');
+    PERFORM movimentar_estoque(1,2,6,'Reposição');
+    PERFORM avaliar_alertas_estoque(1);
+    PERFORM movimentar_estoque(1,2,-6,'Nova utilização');
+    PERFORM pg_temp.verificar(avaliar_alertas_estoque(1)=1,'Novo episódio de estoque baixo gera novo alerta');
+    UPDATE item_estoque SET validade=current_date+1 WHERE id=1;
+    PERFORM pg_temp.verificar(avaliar_alertas_estoque(1)=1,'Validade próxima gera alerta');
+    PERFORM pg_temp.verificar(avaliar_alertas_estoque(1)=0,'Validade próxima não gera alertas duplicados');
+    PERFORM pg_temp.verificar((SELECT count(*)>0 FROM envio_email WHERE estado='PENDENTE'),'Alertas entram na fila de e-mail sem envio externo');
+
+    -- Fixture de bytes: valida preservação binária, não qualidade estrutural do PDF.
+    v_bytes:=convert_to('%PDF-1.4'||chr(10)||'fixture de teste'||chr(10)||'%%EOF','UTF8');
+    PERFORM contexto_operacao(3,'Importação de protocolo de teste');
+    INSERT INTO protocolo(laboratorio_id,titulo,autor_id,pdf_original,nome_arquivo)
+    VALUES(1,'Protocolo de teste',3,v_bytes,'protocolo.pdf') RETURNING id INTO pid;
+    PERFORM pg_temp.verificar((SELECT pdf_original=v_bytes FROM protocolo WHERE id=pid),'PDF original preservado byte a byte');
+    PERFORM pg_temp.esperar_erro(format('SELECT validar_protocolo(1,%s)',pid),'23514','Protocolo sem assinatura não é validado');
+    PERFORM pg_temp.esperar_erro(format('SELECT assinar_protocolo(4,%s)',pid),'42501','Somente autor assina protocolo');
+    PERFORM pg_temp.esperar_erro(format('INSERT INTO protocolo_equipamento(protocolo_id,equipamento_id,laboratorio_id,vinculado_por) VALUES(%s,301,1,1)',pid),'23514','Não vincula protocolo não validado');
+    PERFORM assinar_protocolo(3,pid);
+    PERFORM pg_temp.esperar_erro(format('SELECT validar_protocolo(2,%s)',pid),'42501','Somente Chefe valida protocolo');
+    PERFORM validar_protocolo(1,pid);
+    INSERT INTO protocolo_equipamento(protocolo_id,equipamento_id,laboratorio_id,vinculado_por) VALUES(pid,301,1,1),(pid,302,1,1);
+    PERFORM pg_temp.verificar((SELECT count(*)=2 FROM protocolo_equipamento WHERE protocolo_id=pid),'Protocolo validado pode vincular vários equipamentos');
+    PERFORM pg_temp.esperar_erro(format('UPDATE protocolo SET titulo=''Conteúdo alterado'' WHERE id=%s',pid),'23514','Protocolo assinado preserva conteúdo');
+
+    UPDATE laboratorio SET duracao_maxima_reserva=interval '2 hours' WHERE id=1;
+    PERFORM pg_temp.esperar_erro($q$SELECT criar_reserva(3,301,'2099-11-12 08:00-03','2099-11-12 11:00-03')$q$,'23514','Limite máximo de duração é aplicado');
+    UPDATE laboratorio SET duracao_maxima_reserva=NULL,max_reservas_simultaneas=2 WHERE id=1;
+    r_aux:=criar_reserva(3,301,'2099-11-12 08:00-03','2099-11-12 09:00-03');
+    r_aux:=criar_reserva(3,302,'2099-11-12 09:00-03','2099-11-12 10:00-03');
+    r_aux:=criar_reserva(3,303,'2099-11-12 08:00-03','2099-11-12 10:00-03');
+    PERFORM pg_temp.verificar(r_aux IS NOT NULL,'Limite usa pico simultâneo real, incluindo reservas consecutivas');
+    PERFORM pg_temp.esperar_erro($q$SELECT criar_reserva(3,304,'2099-11-12 08:30-03','2099-11-12 09:30-03')$q$,'23514','Limite rejeita terceira reserva simultânea do usuário');
+    r_aux:=criar_reserva(4,304,'2099-11-12 08:30-03','2099-11-12 09:30-03');
+    PERFORM pg_temp.verificar(r_aux IS NOT NULL,'Limite configurado é aplicado separadamente por usuário');
+    UPDATE laboratorio SET max_reservas_simultaneas=1 WHERE id=1;
+    r_aux:=criar_reserva(3,102,'2099-11-13 08:00-03','2099-11-13 10:00-03');
+    PERFORM pg_temp.verificar((SELECT count(*)>1 FROM reserva_recurso WHERE reserva_id=r_aux),'Reserva de conjunto conta como uma solicitação no limite');
+    PERFORM pg_temp.verificar(NOT EXISTS(SELECT 1 FROM historico_uso WHERE antes ? 'senha_hash' OR depois ? 'senha_hash' OR antes ? 'pdf_original' OR depois ? 'pdf_original'),'Auditoria não armazena senhas nem bytes de PDF');
+    PERFORM pg_temp.verificar(EXISTS(SELECT 1 FROM historico_uso WHERE tabela='equipamento' AND acao='UPDATE' AND ator_id=1),'Alteração de local é auditada com ator');
+    PERFORM pg_temp.esperar_erro($q$DELETE FROM historico_uso$q$,'23514','Histórico não é apagado');
+    PERFORM pg_temp.esperar_erro($q$UPDATE historico_uso SET motivo='Adulterado'$q$,'23514','Histórico não é adulterado');
+    PERFORM pg_temp.esperar_erro($q$TRUNCATE historico_uso$q$,'23514','Histórico não pode ser truncado');
+END $$;
+-- Força todas as validações adiadas antes de apresentar o resultado.
+SET CONSTRAINTS ALL IMMEDIATE;
+SELECT ordem,nome,resultado FROM resultados_teste ORDER BY ordem;
+SELECT count(*) AS testes_aprovados FROM resultados_teste;
+ROLLBACK;
