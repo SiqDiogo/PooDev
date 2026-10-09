@@ -1,0 +1,49 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Laboratório: iniciar sistema",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "gestao_lab",
+      "args": ["servir"],
+      "cwd": "${workspaceFolder}/backend",
+      "envFile": "${workspaceFolder}/.env",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "Laboratório: criar Chefe inicial",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "gestao_lab",
+      "args": ["criar-chefe"],
+      "cwd": "${workspaceFolder}/backend",
+      "envFile": "${workspaceFolder}/.env",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "Laboratório: redefinir senha",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "gestao_lab",
+      "args": ["definir-senha"],
+      "cwd": "${workspaceFolder}/backend",
+      "envFile": "${workspaceFolder}/.env",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "Laboratório: executar todos os testes",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["-q"],
+      "cwd": "${workspaceFolder}/backend",
+      "envFile": "${workspaceFolder}/.env",
+      "console": "integratedTerminal",
+      "justMyCode": true
+    }
+  ]
+}

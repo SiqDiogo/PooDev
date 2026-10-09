@@ -1,17 +1,17 @@
-## **Sistema de Gestão de Laboratório de Pesquisa**
+# Sistema de Gestão de Laboratório de Pesquisa
 
-Projeto para a disciplina **Paradigma Orientado a Objetos para Desenvolvimento de Software**, do Curso de Ciência da Computação - UENF.
+Projeto da disciplina Paradigma Orientado a Objetos para Desenvolvimento de Software, do curso de Ciência da Computação da UENF.
 
-A proposta do projeto é desenvolver a capacidade de projetar e implementar softwares utilizando o paradigma orientado a objetos, aplicando conceitos, técnicas e boas práticas de programação em um projeto real, de forma incremental e colaborativa, visando a criação de soluções eficientes, reutilizáveis e de fácil manutenção.
+O sistema será desenvolvido para cadastrar usuários e organizar o uso dos recursos do laboratório. A programação é feita em Python pelo VS Code. O PostgreSQL armazena os dados e o pgAdmin é usado para instalar e consultar o banco.
 
+## Organização
 
-## **PDF Inicial do Projeto**
-Serve como estrutura modular para o desenvolvimento final do projeto e mapeamento dos requisitos.
+| Pasta | Conteúdo |
+| --- | --- |
+| `backend/` | Aplicação Python e testes. |
+| `database/` | Scripts SQL e referências do banco. |
+| `.vscode/` | Configurações de execução e depuração. |
 
-<p align="center">
-  <a href="./SistemaDeGestaoDeLaboratorio.pdf">
-    <img src="./preview-pdf.jpg" alt="Preview do PDF - Sistema de Gestão de Laboratório" width="600" style="border: 1px solid #ddd; border-radius: 6px;">
-  </a>
-  <br>
-  <em>Clique na imagem acima ou <a href="./SistemaDeGestaoDeLaboratorio.pdf"><strong>clique aqui para abrir o PDF completo</strong></a>.</em>
-</p>
+- [Semana 1: banco de dados](database/README.md).
+- [Semana 2: cadastro de perfis](backend/README.md).
+- [Proposta inicial do projeto](SistemaDeGestaoDeLaboratorio.pdf).
