@@ -25,6 +25,10 @@ class HistoricoUso:
     motivo: str | None = None
     antes: dict | None = None
     depois: dict | None = None
+    ator_nome: str | None = None
+    recurso_nome: str | None = None
+    usuario_nome: str | None = None
+    descricao: str | None = None
 
     def __post_init__(self) -> None:
 

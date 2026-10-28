@@ -13,8 +13,8 @@ h1 { font-size: 1.8rem; margin-bottom: 24px; }
 form { display: grid; gap: 20px; }
 .campos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
 label { display: grid; gap: 8px; font-weight: 600; }
-input, select { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid #b7c5cf; border-radius: 6px; font: inherit; background: white; }
-input:focus, select:focus { outline: 3px solid #99c9df; border-color: #146c91; }
+input, select, textarea { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid #b7c5cf; border-radius: 6px; font: inherit; background: white; }
+input:focus, select:focus, textarea:focus { outline: 3px solid #99c9df; border-color: #146c91; }
 button, .botao { display: inline-block; width: fit-content; border: 1px solid #146c91; border-radius: 6px; padding: 11px 18px; background: #146c91; color: white; font: inherit; font-weight: 600; cursor: pointer; text-decoration: none; }
 .secundario { background: white; color: #146c91; }
 .acoes { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 16px; }
@@ -30,3 +30,5 @@ table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 14px 18px; border-bottom: 1px solid #e3e9ee; }
 th { background: #eaf0f4; }
 @media (max-width: 640px) { .campos { grid-template-columns: 1fr; } .cartao { padding: 20px; } dl { grid-template-columns: 1fr; gap: 6px; } dd { margin-bottom: 12px; } }
+
+.cartao + .cartao { margin-top: 24px; }

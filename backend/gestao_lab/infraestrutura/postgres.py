@@ -14,6 +14,7 @@ from ..dominio.bancadas import Bancada
 from ..dominio.equipamentos import Equipamento
 from ..dominio.historico import HistoricoUso
 from ..dominio.repositorios import RepositorioHistoricoUso
+from .chaves_postgres import ChavesPostgres, ConsultaHistoricoSemana4
 
 
 CONSULTA_USUARIOS = """
@@ -516,6 +517,21 @@ class ReservasPostgres(RepositorioReservas):
     def __init__(self, conexao):
         self._conexao = conexao
 
+    def buscar(self, reserva_id, laboratorio_id):
+        return self._conexao.execute("SELECT id,usuario_id,estado::text AS estado,inicio,fim FROM gestao_lab.reserva WHERE id=%s AND laboratorio_id=%s",
+                                      (reserva_id, laboratorio_id)).fetchone()
+
+    def disponibilidade(self, laboratorio_id, usuario_id, inicio, fim):
+        return self._conexao.execute("""
+            SELECT v.recurso_id, concat_ws(' — ',v.recurso_nome,v.numero_patrimonio) AS nome,
+                   concat_ws(' / ',v.sala_localizacao,v.sala_identificacao,v.bancada_identificacao,v.complemento_local) AS local,
+                   gestao_lab.recurso_disponivel(v.recurso_id,%s,%s) AND NOT EXISTS (
+                       SELECT 1 FROM gestao_lab.proibicao_aluno_equipamento p
+                       JOIN gestao_lab.recursos_abrangidos(v.recurso_id) a ON a.recurso_id=p.equipamento_id
+                       WHERE p.aluno_id=%s AND p.encerrada_em IS NULL) AS livre
+            FROM gestao_lab.vw_local_recurso v WHERE v.laboratorio_id=%s ORDER BY v.tipo,v.recurso_nome,v.recurso_id
+        """, (inicio,fim,usuario_id,laboratorio_id)).fetchall()
+
     def criar(
         self,
         usuario_id: int,
@@ -570,7 +586,8 @@ class ReservasPostgres(RepositorioReservas):
                 r.usuario_id,
                 u.nome AS usuario_nome,
                 r.recurso_principal_id,
-                rec.nome AS recurso_nome,
+                rr.local_registrado->>'recurso_nome' AS recurso_nome,
+                rr.local_registrado,
                 rec.tipo::text AS tipo_recurso,
                 r.inicio,
                 r.fim,
@@ -582,6 +599,7 @@ class ReservasPostgres(RepositorioReservas):
                 ON u.id = r.usuario_id
             JOIN gestao_lab.recurso rec
                 ON rec.id = r.recurso_principal_id
+            JOIN gestao_lab.reserva_recurso rr ON rr.reserva_id=r.id AND rr.recurso_id=r.recurso_principal_id
             WHERE r.laboratorio_id = %s
               AND (
                   %s
@@ -605,106 +623,10 @@ class HistoricoUsoPostgres(RepositorioHistoricoUso):
     def __init__(self, conexao):
         self._conexao = conexao
 
-    def listar(
-        self,
-        laboratorio_id: int,
-        solicitante_id: int,
-        pode_ver_todas: bool,
-        *,
-        usuario_id: int | None = None,
-        recurso_id: int | None = None,
-        desde: datetime | None = None,
-        ate: datetime | None = None
-    ) -> list[HistoricoUso]:
-
-        resultado = self._conexao.execute("""
-            SELECT
-                h.id,
-                h.laboratorio_id,
-                h.tabela,
-                h.registro_id,
-                h.acao,
-                h.registrado_em,
-                h.ator_id,
-                h.motivo,
-                h.antes,
-                h.depois
-
-            FROM gestao_lab.historico_uso AS h
-
-            JOIN gestao_lab.reserva AS r
-                ON r.id = CASE
-                    WHEN h.tabela = 'reserva'
-                    THEN (
-                        COALESCE(h.depois, h.antes) ->> 'id'
-                    )::bigint
-
-                    ELSE (
-                        COALESCE(h.depois, h.antes) ->> 'reserva_id'
-                    )::bigint
-                END
-                AND r.laboratorio_id = h.laboratorio_id
-
-            WHERE h.laboratorio_id = %s
-
-              AND h.tabela IN (
-                  'reserva',
-                  'reserva_recurso'
-              )
-
-              AND (
-                  %s
-                  OR r.usuario_id = %s
-              )
-
-              AND (
-                  %s::bigint IS NULL
-                  OR r.usuario_id = %s
-              )
-
-              AND (
-                  %s::bigint IS NULL
-                  OR r.recurso_principal_id = %s
-                  OR EXISTS (
-                      SELECT 1
-                      FROM gestao_lab.reserva_recurso AS rr
-                      WHERE rr.reserva_id = r.id
-                        AND rr.recurso_id = %s
-                  )
-              )
-
-              AND (
-                  %s::timestamptz IS NULL
-                  OR h.registrado_em >= %s
-              )
-
-              AND (
-                  %s::timestamptz IS NULL
-                  OR h.registrado_em < %s
-              )
-
-            ORDER BY h.registrado_em DESC, h.id DESC
-            LIMIT 100
-
-        """, (
-            laboratorio_id,
-            pode_ver_todas,
-            solicitante_id,
-            usuario_id,
-            usuario_id,
-            recurso_id,
-            recurso_id,
-            recurso_id,
-            desde,
-            desde,
-            ate,
-            ate
-        ))
-
-        return [
-            HistoricoUso(**linha)
-            for linha in resultado.fetchall()
-        ]
+    def listar(self, laboratorio_id, solicitante_id, pode_ver_todas, *, usuario_id=None, recurso_id=None, desde=None, ate=None):
+        return ConsultaHistoricoSemana4(self._conexao).listar(
+            laboratorio_id, usuario_id=usuario_id if pode_ver_todas else solicitante_id,
+            recurso_id=recurso_id, inicio=desde, fim=ate)
 
 
 
@@ -780,7 +702,10 @@ def traduzir_erro(erro: psycopg.Error) -> Exception:
 
                 "Operação exige o Chefe do laboratório":
                     "A operação exige permissão "
-                    "do Chefe do laboratório."
+                    "do Chefe do laboratório.",
+                "Reserva não autoriza a retirada para este usuário": "A reserva não autoriza esta retirada. Confira o portador, o cancelamento e o término.",
+                "Cópia designada a outro usuário": "Esta cópia está designada a outro usuário.",
+                "Chave não corresponde ao acesso da reserva": "Esta chave não dá acesso ao recurso reservado."
             }
 
             return AcessoNegado(
@@ -814,7 +739,11 @@ def traduzir_erro(erro: psycopg.Error) -> Exception:
                     "e não pode ser cancelada.",
 
                 "Informe motivo de cancelamento":
-                    "Informe o motivo do cancelamento."
+                    "Informe o motivo do cancelamento.",
+                "Não alterar designação de cópia emprestada": "Devolva a chave antes de alterar sua designação.",
+                "Empréstimo já encerrado": "Este empréstimo já foi devolvido.",
+                "Cópia indisponível ou extraviada": "Esta cópia está indisponível ou extraviada.",
+                "Local ou composição possui reserva vigente/futura; regularize antes da alteração": "O local possui reserva ativa ou futura. Regularize as reservas antes de alterar a localização."
             }
 
             return DadosInvalidos(
@@ -833,6 +762,12 @@ def traduzir_erro(erro: psycopg.Error) -> Exception:
 
         # Cadastro duplicado: preserva a regra da Semana 2.
         if codigo == "23505":
+            if restricao == "chave_codigo_copia_key":
+                return CadastroDuplicado("Já existe uma chave com esse código de cópia.")
+            if restricao == "emprestimo_chave_uma_posse_aberta":
+                return DadosInvalidos("Esta cópia já possui uma retirada em aberto.")
+            if (restricao or "").startswith("equipamento_"):
+                return CadastroDuplicado("Já existe um equipamento com esse número de patrimônio.")
             if restricao == "aluno_matricula_key":
                 return CadastroDuplicado(
                     "Já existe um aluno com essa matrícula."
@@ -878,6 +813,7 @@ class UnidadeTrabalhoPostgres(UnidadeTrabalho):
         self.recursos = RecursosPostgres(self._conexao)
         self.reservas = ReservasPostgres(self._conexao)
         self.historico = HistoricoUsoPostgres(self._conexao)
+        self.chaves = ChavesPostgres(self._conexao)
         self.sessoes = SessoesPostgres(self._conexao)
         return self
 

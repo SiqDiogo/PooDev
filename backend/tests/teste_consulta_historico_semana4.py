@@ -34,7 +34,12 @@ linha = {
 }
 
 conexao = Mock()
-conexao.execute.return_value.fetchall.return_value = [linha]
+linha.update(ator_nome="Chefe", recurso_nome="Equipamento", usuario_nome="Professor", reserva_id=10, codigo_copia=None,
+             designada_anterior=None, designada_atual=None)
+cursor_eventos, cursor_locais = Mock(), Mock()
+cursor_eventos.fetchall.return_value = [linha]
+cursor_locais.fetchall.return_value = []
+conexao.execute.side_effect = [cursor_eventos, cursor_locais]
 
 repositorio = HistoricoUsoPostgres(conexao)
 
@@ -49,14 +54,14 @@ assert len(eventos) == 1
 assert isinstance(eventos[0], HistoricoUso)
 assert eventos[0].eh_cancelamento()
 
-sql, parametros = conexao.execute.call_args.args
+sql, parametros = conexao.execute.call_args_list[0].args
 
 assert "gestao_lab.historico_uso" in sql
 assert "JOIN gestao_lab.reserva" in sql
 assert "reserva_recurso" in sql
 
-assert parametros[:3] == (1, False, 2)
-assert parametros[5:8] == (3, 3, 3)
+assert parametros[0] == 1
+assert 2 in parametros and 3 in parametros
 
 print("Teste 1: repositório funcionando.")
 

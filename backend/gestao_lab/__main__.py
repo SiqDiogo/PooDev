@@ -11,6 +11,7 @@ from .infraestrutura.postgres import UnidadeTrabalhoPostgres
 from .aplicacao.servicos import ServicoReservas
 from .aplicacao.servicos import ServicoHistoricoUso
 from .aplicacao.servicos import ServicoLimitesReserva
+from .aplicacao.chaves import ServicoChaves
 
 
 class AtendimentoLocal(WSGIRequestHandler):
@@ -60,7 +61,8 @@ def main():
             reservas = ServicoReservas(transacao, autenticacao)
             historico = ServicoHistoricoUso(transacao, autenticacao)
             limites = ServicoLimitesReserva(transacao, autenticacao)
-            app = AplicacaoWeb(autenticacao, cadastro, config, recursos=recursos, reservas=reservas, historico=historico, limites=limites)
+            chaves = ServicoChaves(transacao, autenticacao)
+            app = AplicacaoWeb(autenticacao, cadastro, config, recursos=recursos, reservas=reservas, historico=historico, limites=limites, chaves=chaves)
 
             # O servidor de referência atende a demonstração local; a interface é WSGI.
             with make_server("127.0.0.1", config.porta, app, handler_class=AtendimentoLocal) as servidor:
@@ -75,4 +77,4 @@ def main():
 
 
 if __name__ == "__main__":
-                main()
+    main()

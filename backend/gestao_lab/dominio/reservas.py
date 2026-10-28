@@ -188,6 +188,8 @@ class Reserva:
             raise DadosInvalidos(
                 "Apenas reservas confirmadas podem ser canceladas."
             )
+        if self.fim <= datetime.now(timezone.utc):
+            raise DadosInvalidos("Esta reserva já está encerrada.")
 
         # 2. Confere o laboratório.
         if (

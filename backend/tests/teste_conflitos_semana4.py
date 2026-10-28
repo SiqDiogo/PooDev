@@ -57,9 +57,7 @@ sala = Sala(
     **dados
 )
 
-inicio = datetime(
-    2026, 11, 1, 10, 0, tzinfo=timezone.utc
-)
+inicio = datetime.now(timezone.utc) + timedelta(days=1)
 fim = inicio + timedelta(hours=1)
 
 

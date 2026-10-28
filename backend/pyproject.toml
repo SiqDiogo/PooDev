@@ -1,4 +1,4 @@
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
-markers = ["integracao: exige TEST_DATABASE_URL com o schema instalado"]
+markers = ["integracao: exige TEST_DATABASE_URL com o schema instalado", "concorrencia: exige PostgreSQL nativo com conexões simultâneas"]

@@ -54,7 +54,7 @@ class ClienteWSGI:
 @pytest.fixture
 def cliente(sistema):
     config = Configuracao(sistema.url, b"segredo-de-teste-com-32-caracteres")
-    return ClienteWSGI(AplicacaoWeb(sistema.auth, sistema.cadastro, config))
+    return ClienteWSGI(AplicacaoWeb(sistema.auth, sistema.cadastro, config, recursos=sistema.recursos, reservas=sistema.reservas, historico=sistema.historico, limites=sistema.limites, chaves=sistema.chaves))
 
 
 def test_cadastro_pelos_formularios_e_login_dos_perfis(sistema, cliente):

@@ -5,20 +5,83 @@
       "label": "Laboratório: instalar dependências",
       "type": "process",
       "command": "${command:python.interpreterPath}",
-      "args": ["-m", "pip", "install", "-r", "backend/requirements-dev.txt"],
-      "options": {"cwd": "${workspaceFolder}"},
+      "args": [
+        "-m",
+        "pip",
+        "install",
+        "-r",
+        "backend/requirements-dev.txt"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
       "problemMatcher": [],
-      "presentation": {"reveal": "always", "panel": "dedicated"}
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
     },
     {
       "label": "Laboratório: testar domínio",
       "type": "process",
       "command": "${command:python.interpreterPath}",
-      "args": ["-m", "pytest", "-m", "not integracao", "-q"],
-      "options": {"cwd": "${workspaceFolder}/backend"},
-      "group": {"kind": "test", "isDefault": true},
+      "args": [
+        "-m",
+        "pytest",
+        "-m",
+        "not integracao",
+        "-q"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/backend"
+      },
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
       "problemMatcher": [],
-      "presentation": {"reveal": "always", "panel": "dedicated"}
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Laboratório: executar todos os testes",
+      "type": "process",
+      "command": "${command:python.interpreterPath}",
+      "args": [
+        "-m",
+        "pytest",
+        "-q"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/backend"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Laboratório: testar concorrência",
+      "type": "process",
+      "command": "${command:python.interpreterPath}",
+      "args": [
+        "-m",
+        "pytest",
+        "-m",
+        "concorrencia",
+        "-q"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/backend"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
     }
   ]
 }

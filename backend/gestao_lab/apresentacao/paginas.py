@@ -1,5 +1,5 @@
 from html import escape
-from datetime import timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from ..dominio.usuarios import Aluno, ChefeLaboratorio, Perfil, Professor, TipoAluno
 
 ROTULOS = {Perfil.ALUNO: "Aluno", Perfil.PROFESSOR: "Professor", Perfil.CHEFE: "Chefe de Laboratório"}
@@ -21,11 +21,11 @@ def layout(titulo, conteudo, usuario=None, csrf=""):
 
         links += '<a href="/reservas">Reservas</a>'
         links += '<a href="/historico">Histórico</a>'
+        links += '<a href="/chaves">Chaves</a><a href="/recursos">Recursos</a>'
 
         if isinstance(usuario, ChefeLaboratorio):
             links += (
                 '<a href="/usuarios">Usuários</a>'
-                '<a href="/recursos">Recursos</a>'
                 '<a href="/cadastros/aluno">Cadastrar aluno</a>'
                 '<a href="/cadastros/professor">Cadastrar professor</a>'
                 '<a href="/limites-reserva">Limites</a>'
@@ -255,7 +255,7 @@ def _pagina_cadastro_recurso(
 
 
 
-def formulario_sala(ator, csrf, dados=None, mensagem=""):
+def formulario_sala(ator, csrf, dados=None, mensagem="", responsaveis=None):
     dados = dados or {}
 
     campos = (
@@ -281,13 +281,13 @@ def formulario_sala(ator, csrf, dados=None, mensagem=""):
     return _pagina_cadastro_recurso(
         "Cadastrar sala",
         "/cadastros/sala",
-        campos, ator, csrf, mensagem
+        campos + _selecao_responsavel(ator, dados, responsaveis), ator, csrf, mensagem
     )
 
 
 
 def formulario_bancada(
-    ator, csrf, salas, dados=None, mensagem=""
+    ator, csrf, salas, dados=None, mensagem="", responsaveis=None
 ):
     dados = dados or {}
 
@@ -318,14 +318,14 @@ def formulario_bancada(
     return _pagina_cadastro_recurso(
         "Cadastrar bancada",
         "/cadastros/bancada",
-        campos, ator, csrf, mensagem
+        campos + _selecao_responsavel(ator, dados, responsaveis), ator, csrf, mensagem
     )
 
 
 
 
 def formulario_equipamento(
-    ator, csrf, salas, bancadas, dados=None, mensagem=""
+    ator, csrf, salas, bancadas, dados=None, mensagem="", responsaveis=None
 ):
     dados = dados or {}
 
@@ -377,7 +377,7 @@ def formulario_equipamento(
     return _pagina_cadastro_recurso(
         "Cadastrar equipamento",
         "/cadastros/equipamento",
-        campos, ator, csrf, mensagem,
+        campos + _selecao_responsavel(ator, dados, responsaveis), ator, csrf, mensagem,
         instrucao=(
             "Selecione uma bancada OU uma sala direta, "
             "nunca ambas."
@@ -412,16 +412,24 @@ def painel_recursos(
         for b in bancadas
     ]
 
-    descricoes_equipamentos = [
-        f"{e.numero_patrimonio} — {e.nome}"
-        for e in equipamentos
-    ]
+    salas_por_id = {s.id: s for s in salas}
+    bancadas_por_id = {b.id: b for b in bancadas}
+    descricoes_equipamentos = []
+    for equipamento in equipamentos:
+        bancada = bancadas_por_id.get(equipamento.bancada_id)
+        sala = salas_por_id[bancada.sala_id if bancada else equipamento.sala_direta_id]
+        destino = f"sala {sala.identificacao}"
+        destino += f" / bancada {bancada.numero_identificacao}" if bancada else " / diretamente na sala"
+        descricoes_equipamentos.append(
+            f"{equipamento.numero_patrimonio} — {equipamento.nome} — {sala.localizacao} / {destino} / {equipamento.complemento_local}"
+        )
 
     corpo = aviso(mensagem)
 
-    corpo += '''
+    if isinstance(ator, ChefeLaboratorio):
+        corpo += '''
     <section class="cartao">
-        <h2>Gerenciar recursos</h2>
+        <h2>Gerenciar recursos</h2><p><a href="/recursos/vinculos">Vínculos de equipamentos</a></p>
         <p>Cadastre e consulte os recursos do laboratório.</p>
 
         <div class="acoes">
@@ -433,9 +441,6 @@ def painel_recursos(
             </a>
             <a class="botao secundario" href="/cadastros/equipamento">
                 Cadastrar equipamento
-            </a>
-            <a class="botao secundario" href="/recursos/vinculos">
-                Vínculos de equipamentos
             </a>
         </div>
     </section>
@@ -455,7 +460,10 @@ def painel_recursos(
 
     corpo += (
         '<section class="cartao"><h2>Equipamentos</h2>'
-        + _lista_visual_recursos(descricoes_equipamentos)
+        + ('<ul>' + ''.join(f'<li>{escape(descricao)}'
+             + (f' — <a href="/recursos/localizacao?id={e.id}">Alterar localização</a>' if isinstance(ator, ChefeLaboratorio) else '')
+             + '</li>' for e, descricao in zip(equipamentos, descricoes_equipamentos)) + '</ul>'
+           if equipamentos else '<p>Nenhum equipamento cadastrado.</p>')
         + '</section>'
     )
 
@@ -472,7 +480,8 @@ def formulario_reserva(
     equipamentos,
     dados=None,
     mensagem="",
-    sucesso=""
+    sucesso="",
+    disponibilidade=None
 ):
     dados = dados or {}
 
@@ -532,6 +541,9 @@ def formulario_reserva(
     )
 
     corpo = aviso(sucesso) + aviso(mensagem, True)
+    if disponibilidade is not None:
+        linhas = ''.join(f'<tr><td>{escape(r["nome"])}</td><td>{escape(r["local"])}</td><td>{"Disponível" if r["livre"] else "Indisponível no período ou para seu perfil"}</td></tr>' for r in disponibilidade)
+        corpo += '<section class="cartao"><h2>Disponibilidade no período</h2><div class="tabela"><table><thead><tr><th>Recurso</th><th>Local</th><th>Situação</th></tr></thead><tbody>' + linhas + '</tbody></table></div></section>'
 
     corpo += (
         '<section class="cartao">'
@@ -539,7 +551,10 @@ def formulario_reserva(
         'equipamentos nela. Reservar uma sala '
         'bloqueia a sala inteira durante o período '
         'escolhido.</p>'
-
+        '<form method="get" action="/reservas/nova"><div class="campos">'
+        + campo("inicio", "Consultar desde (Brasília)", dados.get("inicio", ""), "datetime-local")
+        + campo("fim", "Consultar até (Brasília)", dados.get("fim", ""), "datetime-local")
+        + '</div><button>Consultar disponibilidade</button></form></section><section class="cartao">'
         '<form method="post" action="/reservas/nova">'
         + oculto(csrf)
         + f'<div class="campos">{campos}</div>'
@@ -619,6 +634,8 @@ def pagina_reservas(
         situacao = rotulos.get(
             estado, estado
         )
+        if estado == "CONFIRMADA" and reserva["fim"] <= datetime.now(timezone.utc):
+            situacao = "Confirmada (período encerrado)"
 
         recurso = (
             f'{reserva["tipo_recurso"]} — '
@@ -633,6 +650,7 @@ def pagina_reservas(
 
         pode_cancelar = (
             estado == "CONFIRMADA"
+            and reserva["fim"] > datetime.now(timezone.utc)
             and (
                 ator.id == reserva["usuario_id"]
                 or eh_chefe
@@ -675,10 +693,12 @@ def pagina_reservas(
                 + '</p>'
             )
 
+        local = reserva.get("local_registrado") or {}
+        descricao_local = ' / '.join(str(local[k]) for k in ("sala_localizacao", "sala_identificacao", "bancada_identificacao", "complemento_local") if local.get(k))
         linhas.append(
             '<tr>'
             f'<td>#{int(reserva["id"])}</td>'
-            f'<td>{escape(recurso)}</td>'
+            f'<td>{escape(recurso)}<p>{escape(descricao_local)}</p></td>'
             f'<td>{escape(periodo)}</td>'
             f'<td>{titular}</td>'
             f'<td>{escape(situacao)}{detalhe}</td>'
@@ -734,7 +754,7 @@ def pagina_historico(
     opcoes_recursos = [
         (
             recurso.id,
-            f"{type(recurso).__name__} — {recurso.nome}"
+            f"{type(recurso).__name__} — {recurso.nome} — {getattr(recurso, 'numero_patrimonio', getattr(recurso, 'identificacao', getattr(recurso, 'numero_identificacao', '')))}"
         )
         for recurso in recursos
         if recurso.id is not None
@@ -804,7 +824,7 @@ def pagina_historico(
             '</section>'
         )
         return layout(
-            "Histórico de reservas",
+            "Histórico de operações",
             corpo,
             ator,
             csrf
@@ -815,7 +835,9 @@ def pagina_historico(
 
     for evento in eventos:
 
-        if evento.eh_cancelamento():
+        if evento.descricao:
+            descricao = evento.descricao
+        elif evento.eh_cancelamento():
             descricao = (
                 f"Reserva #{evento.registro_id} cancelada"
             )
@@ -859,7 +881,7 @@ def pagina_historico(
         )
 
         responsavel = (
-            str(evento.ator_id)
+            evento.ator_nome or str(evento.ator_id)
             if evento.ator_id is not None
             else "Sistema"
         )
@@ -870,7 +892,7 @@ def pagina_historico(
             "<tr>"
             f"<td>#{evento.id}</td>"
             f"<td>{escape(data_formatada)}</td>"
-            f"<td>{escape(descricao)}</td>"
+            f"<td>{escape(descricao)}<p>{escape(evento.recurso_nome or '')} — {escape(evento.usuario_nome or '')}</p></td>"
             f"<td>{escape(responsavel)}</td>"
             f"<td>{escape(str(motivo))}</td>"
             "</tr>"
@@ -887,7 +909,7 @@ def pagina_historico(
         '<th>ID</th>'
         '<th>Data e hora</th>'
         '<th>Evento</th>'
-        '<th>Responsável (ID)</th>'
+        '<th>Responsável</th>'
         '<th>Motivo</th>'
         '</tr></thead>'
         f'<tbody>{"".join(linhas)}</tbody>'
@@ -895,7 +917,7 @@ def pagina_historico(
     )
 
     return layout(
-        "Histórico de reservas",
+        "Histórico de operações",
         corpo,
         ator,
         csrf
@@ -1091,6 +1113,8 @@ def formulario_vinculos_equipamento(
             )
         )
 
+        campos += campo("complemento_local", "Posição na sala (opcional)", dados.get("complemento_local", ""), obrigatorio=False, limite=200)
+
         corpo += (
             '<p>O equipamento continuará na sala '
             'da bancada atual.</p>'
@@ -1147,3 +1171,21 @@ def formulario_vinculos_equipamento(
         ator,
         csrf
     )
+
+
+def _selecao_responsavel(ator, dados, responsaveis):
+    return _selecao_recurso("responsavel_id", "Professor responsável", [(u.id, u.nome) for u in (responsaveis or [ator])], dados.get("responsavel_id", ator.id))
+
+
+def formulario_localizacao(ator, csrf, equipamento, salas, bancadas, dados=None, mensagem=""):
+    dados = dados if dados is not None else {"bancada_id": equipamento.bancada_id or "",
+        "sala_direta_id": equipamento.sala_direta_id or "", "complemento_local": equipamento.complemento_local}
+    campos = f'<input type="hidden" name="equipamento_id" value="{equipamento.id}">'
+    salas_por_id = {s.id: s for s in salas}
+    campos += _selecao_recurso("bancada_id", "Bancada (opcional)", [(b.id, f'{salas_por_id[b.sala_id].identificacao} / {b.numero_identificacao} — {b.nome}') for b in bancadas], dados.get("bancada_id", ""), False)
+    campos += _selecao_recurso("sala_direta_id", "Sala direta (opcional)", [(s.id, f'{s.identificacao} — {s.nome}') for s in salas], dados.get("sala_direta_id", ""), False)
+    campos += campo("complemento_local", "Complemento do local", dados.get("complemento_local", ""), limite=200)
+    corpo = aviso(mensagem, True) + f'''<section class="cartao estreito"><p>{escape(equipamento.numero_patrimonio)} — {escape(equipamento.nome)}</p>
+<p>Selecione uma bancada ou uma sala direta. Reservas ativas ou futuras que envolvam a alteração devem ser regularizadas antes da mudança.</p>
+<form method="post" action="/recursos/localizacao">{oculto(csrf)}{campos}<div class="acoes"><button>Salvar localização</button><a href="/recursos">Voltar</a></div></form></section>'''
+    return layout("Alterar localização", corpo, ator, csrf)

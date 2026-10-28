@@ -14,4 +14,5 @@ O sistema será desenvolvido para cadastrar usuários e organizar o uso dos recu
 
 - [Semana 1: banco de dados](database/README.md).
 - [Semana 2: cadastro de perfis](backend/README.md).
+- [Semana 4: reservas e controle de chaves](backend/README_Semana4.md).
 - [Proposta inicial do projeto](SistemaDeGestaoDeLaboratorio.pdf).
