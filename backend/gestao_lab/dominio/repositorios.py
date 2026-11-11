@@ -12,6 +12,7 @@ from .historico import HistoricoUso
 from .chaves import CopiaChave, DestinoChave, EmprestimoChave, ReservaAutorizada
 from decimal import Decimal
 from .estoque import ItemEstoque, MovimentacaoEstoque
+from .protocolos import Protocolo
 
 
 @dataclass(frozen=True)
@@ -306,6 +307,35 @@ class RepositorioEstoque(ABC):
 
 
 
+class RepositorioProtocolos(ABC):
+    @abstractmethod
+    def listar(self, laboratorio_id: int) -> list[Protocolo]: ...
+
+    @abstractmethod
+    def buscar(self, protocolo_id: int, laboratorio_id: int) -> Protocolo | None: ...
+
+    @abstractmethod
+    def criar(
+        self, laboratorio_id: int, autor_id: int,
+        titulo: str, nome_arquivo: str, pdf_original: bytes
+    ) -> int: ...
+
+    @abstractmethod
+    def assinar(self, autor_id: int, protocolo_id: int) -> None: ...
+
+    @abstractmethod
+    def validar(self, chefe_id: int, protocolo_id: int) -> None: ...
+
+    @abstractmethod
+    def vincular(
+        self, protocolo_id: int, equipamento_id: int,
+        laboratorio_id: int, chefe_id: int
+    ) -> None: ...
+
+    @abstractmethod
+    def arquivo(self, protocolo_id: int, laboratorio_id: int) -> tuple[str, bytes] | None: ...
+
+
 class RepositorioSessoes(ABC):
     @abstractmethod
     def criar(self, usuario_id: int, token_hash: bytes, expira_em: datetime) -> None: ...
@@ -331,6 +361,7 @@ class UnidadeTrabalho(ABC):
     historico: RepositorioHistoricoUso
     chaves: RepositorioChaves
     estoque: RepositorioEstoque
+    protocolos: RepositorioProtocolos
 
     @abstractmethod
     def contexto(self, ator_id: int | None, motivo: str) -> None: ...

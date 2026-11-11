@@ -18,6 +18,7 @@ from .chaves_postgres import ChavesPostgres, ConsultaHistoricoSemana4
 from decimal import Decimal
 from ..dominio.estoque import ItemEstoque, MovimentacaoEstoque
 from ..dominio.repositorios import RepositorioEstoque
+from .protocolos_postgres import ProtocolosPostgres
 
 
 CONSULTA_USUARIOS = """
@@ -973,6 +974,7 @@ class UnidadeTrabalhoPostgres(UnidadeTrabalho):
         self.chaves = ChavesPostgres(self._conexao)
         self.sessoes = SessoesPostgres(self._conexao)
         self.estoque = EstoquePostgres(self._conexao)
+        self.protocolos = ProtocolosPostgres(self._conexao)
         return self
 
     def contexto(self, ator_id, motivo):

@@ -21,6 +21,7 @@ def layout(titulo, conteudo, usuario=None, csrf=""):
 
         links += '<a href="/reservas">Reservas</a>'
         links += '<a href="/historico">Histórico</a>'
+        links += '<a href="/protocolos">Protocolos</a>'
         links += '<a href="/chaves">Chaves</a><a href="/recursos">Recursos</a>'
 
         if isinstance(usuario, ChefeLaboratorio):

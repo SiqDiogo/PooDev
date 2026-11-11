@@ -13,6 +13,7 @@ from .aplicacao.servicos import ServicoHistoricoUso
 from .aplicacao.servicos import ServicoLimitesReserva
 from .aplicacao.chaves import ServicoChaves
 from .aplicacao.servicos import ServicoEstoque
+from .aplicacao.protocolos import ServicoProtocolos
 import logging
 from threading import Event, Thread
 
@@ -97,27 +98,27 @@ def main():
             limites = ServicoLimitesReserva(transacao, autenticacao)
             chaves = ServicoChaves(transacao, autenticacao)
             estoque = ServicoEstoque(transacao, autenticacao)
-            app = AplicacaoWeb(autenticacao, cadastro, config, recursos=recursos, reservas=reservas, historico=historico, limites=limites, chaves=chaves, estoque=estoque)
+            protocolos = ServicoProtocolos(transacao, autenticacao)
+            app = AplicacaoWeb(autenticacao, cadastro, config, recursos=recursos, reservas=reservas, historico=historico, limites=limites, chaves=chaves, estoque=estoque, protocolos=protocolos)
 
             # O servidor de referência atende a demonstração local; a interface é WSGI.
-            
-        parada_alertas = iniciar_monitoramento_estoque(transacao)
+            parada_alertas = iniciar_monitoramento_estoque(transacao)
 
-        try:
-            with make_server(
-                "127.0.0.1",
-                config.porta,
-                app,
-                handler_class=AtendimentoLocal
-            ) as servidor:
-                print(
-                    f"Abra http://127.0.0.1:{config.porta}"
-                    " — Ctrl+C para encerrar."
-                )
-                servidor.serve_forever()
+            try:
+                with make_server(
+                    "127.0.0.1",
+                    config.porta,
+                    app,
+                    handler_class=AtendimentoLocal
+                ) as servidor:
+                    print(
+                        f"Abra http://127.0.0.1:{config.porta}"
+                        " — Ctrl+C para encerrar."
+                    )
+                    servidor.serve_forever()
 
-        finally:
-            parada_alertas.set()
+            finally:
+                parada_alertas.set()
 
     except (ErroAplicacao, OSError) as erro:
         if isinstance(erro, ErroAplicacao):

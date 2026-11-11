@@ -1,19 +1,23 @@
 from dataclasses import dataclass, field
+from email import policy
+from email.parser import BytesParser
 from http import HTTPStatus
 from http.cookies import SimpleCookie, CookieError
 from pathlib import Path
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, quote, urlsplit
 import logging
 import time
 
 from . import paginas
 from . import paginas_chaves
+from . import paginas_protocolos
 from .csrf import ProtecaoCSRF
 from ..aplicacao.servicos import DadosCadastro
 from ..dominio.erros import AcessoNegado, CredenciaisInvalidas, DadosInvalidos, ErroAplicacao, FalhaPersistencia
 from ..dominio.usuarios import Perfil, Professor, ChefeLaboratorio
 from datetime import date, datetime, timedelta, timezone
 from . import paginas_estoque
+from ..dominio.protocolos import LIMITE_PDF_BYTES
 
 @dataclass
 class Resposta:
@@ -40,7 +44,7 @@ class LimiteLogin:
 
 
 class AplicacaoWeb:
-    def __init__(self, autenticacao, cadastro, configuracao, recursos=None, reservas=None, historico=None, limites=None, chaves=None, estoque=None):
+    def __init__(self, autenticacao, cadastro, configuracao, recursos=None, reservas=None, historico=None, limites=None, chaves=None, estoque=None, protocolos=None):
         self._autenticacao = autenticacao
         self._cadastro = cadastro
         self._recursos = recursos
@@ -53,6 +57,7 @@ class AplicacaoWeb:
         self._historico = historico
         self._limites = limites
         self._estoque = estoque
+        self._protocolos = protocolos
 
     def __call__(self, environ, start_response):
         try:
@@ -111,6 +116,54 @@ class AplicacaoWeb:
         if any(len(valores) != 1 for valores in campos.values()):
             raise DadosInvalidos("O formulário contém campos duplicados.")
         return {k: v[0] for k, v in campos.items()}
+
+    @staticmethod
+    def _ler_formulario_pdf(environ):
+        """Lê multipart com limite de tamanho, preservando os bytes do anexo."""
+        tipo = environ.get("CONTENT_TYPE", "")
+        if (len(tipo) > 250 or not tipo.isascii() or "\r" in tipo or "\n" in tipo
+                or not tipo.lower().startswith("multipart/form-data;")):
+            raise DadosInvalidos("Envie o PDF pelo formulário indicado.")
+        try:
+            tamanho = int(environ.get("CONTENT_LENGTH") or "0")
+        except (TypeError, ValueError) as erro:
+            raise DadosInvalidos("Tamanho do formulário inválido.") from erro
+        if not 0 < tamanho <= LIMITE_PDF_BYTES + 16384:
+            raise DadosInvalidos("O arquivo PDF deve ter até 5 MB.")
+        corpo = environ["wsgi.input"].read(tamanho)
+        if len(corpo) != tamanho:
+            raise DadosInvalidos("O upload foi interrompido.")
+        cabecalho = (
+            "MIME-Version: 1.0\r\nContent-Type: " + tipo + "\r\n\r\n"
+        ).encode("ascii", errors="strict")
+        try:
+            mensagem = BytesParser(policy=policy.default).parsebytes(cabecalho + corpo)
+            if not mensagem.is_multipart() or len(mensagem.get_payload()) > 3:
+                raise DadosInvalidos("Formulário de protocolo inválido.")
+            dados = {}
+            for parte in mensagem.iter_parts():
+                if parte.is_multipart() or parte.get_content_disposition() != "form-data":
+                    raise DadosInvalidos("Formulário de protocolo inválido.")
+                nome = parte.get_param("name", header="content-disposition")
+                if nome not in {"csrf", "titulo", "arquivo"} or nome in dados:
+                    raise DadosInvalidos("Campos ausentes ou duplicados no formulário.")
+                if parte.get("Content-Transfer-Encoding", "binary").lower() not in {
+                    "binary", "8bit", "7bit"
+                }:
+                    raise DadosInvalidos("Codificação do arquivo não permitida.")
+                valor = parte.get_payload(decode=True)
+                if valor is None:
+                    raise DadosInvalidos("Formulário de protocolo inválido.")
+                if nome == "arquivo":
+                    dados["nome_arquivo"] = parte.get_filename() or ""
+                    dados["arquivo"] = valor
+                else:
+                    dados[nome] = valor.decode("utf-8")
+        except (UnicodeError, ValueError, TypeError, IndexError) as erro:
+            raise DadosInvalidos("O formulário de protocolo é inválido.") from erro
+        if set(dados) != {"csrf", "titulo", "arquivo", "nome_arquivo"}:
+            raise DadosInvalidos("Preencha o título e selecione um PDF.")
+        return dados
 
     @staticmethod
     def _identificador(valor):
@@ -393,6 +446,77 @@ class AplicacaoWeb:
             400 if erro_formulario else 200
         )
 
+    def _rotear_protocolos(self, rota, metodo, environ, campos, token, usuario, csrf):
+        if self._protocolos is None:
+            raise FalhaPersistencia("Serviço de protocolos indisponível.")
+        if rota in {"/protocolos/download", "/protocolos/detalhe"} and metodo != "GET":
+            return Resposta("Método não permitido.", 405, [("Allow", "GET")])
+        if rota in {"/protocolos/assinar", "/protocolos/validar", "/protocolos/vincular"} and metodo != "POST":
+            return Resposta("Método não permitido.", 405, [("Allow", "POST")])
+        dados = self._ler_consulta(environ) if metodo == "GET" else campos
+        if rota == "/protocolos":
+            if metodo != "GET":
+                return Resposta("Método não permitido.", 405, [("Allow", "GET")])
+            avisos = {
+                "novo": "Protocolo cadastrado. O autor já pode assiná-lo.",
+                "assinado": "Assinatura registrada.",
+                "validado": "Protocolo validado.",
+                "vinculado": "Equipamento vinculado ao protocolo.",
+            }
+            return Resposta(paginas_protocolos.lista(
+                usuario, csrf, self._protocolos.listar(token),
+                avisos.get(dados.get("resultado"), "")
+            ))
+        if rota == "/protocolos/novo":
+            if metodo == "GET":
+                return Resposta(paginas_protocolos.novo(usuario, csrf))
+            try:
+                protocolo_id = self._protocolos.cadastrar(
+                    token, titulo=campos.get("titulo", ""),
+                    nome_arquivo=campos.get("nome_arquivo", ""),
+                    pdf_original=campos.get("arquivo", b"")
+                )
+            except (AcessoNegado, FalhaPersistencia):
+                raise
+            except ErroAplicacao as erro:
+                return Resposta(paginas_protocolos.novo(
+                    usuario, csrf, str(erro), campos.get("titulo", "")
+                ), 400)
+            return self._redirecionar(f"/protocolos/detalhe?id={protocolo_id}")
+
+        protocolo_id = self._identificador(
+            dados.get("id") if metodo == "GET" else dados.get("protocolo_id")
+        )
+        if rota == "/protocolos/download":
+            if metodo != "GET":
+                return Resposta("Método não permitido.", 405, [("Allow", "GET")])
+            nome, conteudo = self._protocolos.baixar(token, protocolo_id)
+            return Resposta(conteudo, headers=[
+                ("Content-Type", "application/pdf"),
+                ("Content-Disposition",
+                 f'attachment; filename="protocolo-{protocolo_id}.pdf"; '
+                 f"filename*=UTF-8''{quote(nome, safe='')}"),
+            ])
+        if rota == "/protocolos/detalhe":
+            if metodo != "GET":
+                return Resposta("Método não permitido.", 405, [("Allow", "GET")])
+            protocolo, equipamentos = self._protocolos.consultar(token, protocolo_id)
+            return Resposta(paginas_protocolos.detalhe(
+                usuario, csrf, protocolo, equipamentos
+            ))
+        if metodo != "POST":
+            return Resposta("Método não permitido.", 405, [("Allow", "POST")])
+        if rota == "/protocolos/assinar":
+            self._protocolos.assinar(token, protocolo_id)
+        elif rota == "/protocolos/validar":
+            self._protocolos.validar(token, protocolo_id)
+        elif rota == "/protocolos/vincular":
+            equipamento_id = self._identificador(campos.get("equipamento_id"))
+            self._protocolos.vincular(token, protocolo_id, equipamento_id)
+        else:
+            return Resposta("Página não encontrada.", 404)
+        return self._redirecionar(f"/protocolos/detalhe?id={protocolo_id}")
+
 
 
 
@@ -470,6 +594,13 @@ class AplicacaoWeb:
             "/chaves/devolver",
             "/chaves/ocorrencia",
             "/estoque",
+            "/protocolos",
+            "/protocolos/novo",
+            "/protocolos/detalhe",
+            "/protocolos/assinar",
+            "/protocolos/validar",
+            "/protocolos/vincular",
+            "/protocolos/download",
             "/sair",
         }:
             return Resposta(
@@ -485,9 +616,18 @@ class AplicacaoWeb:
             return self._redirecionar("/entrar", [self._cookie("lab_sessao", "", True)])
         csrf = self._csrf.para_sessao(token)
         if metodo == "POST":
-            campos = self._ler_formulario(environ)
+            campos = (
+                self._ler_formulario_pdf(environ)
+                if rota == "/protocolos/novo"
+                else self._ler_formulario(environ)
+            )
             if not self._csrf.validar_sessao(token, campos.get("csrf", "")):
                 raise AcessoNegado("O formulário expirou. Abra a página novamente.")
+        if rota.startswith("/protocolos"):
+            return self._rotear_protocolos(
+                rota, metodo, environ, campos if metodo == "POST" else {},
+                token, usuario, csrf
+            )
         if rota.startswith("/chaves"):
             return self._rotear_chaves(rota, metodo, environ, campos if metodo == "POST" else {}, token, usuario, csrf)
         if rota == "/recursos/localizacao":
